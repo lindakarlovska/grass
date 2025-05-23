@@ -106,13 +106,21 @@ class JupyterPanel(wx.Panel, MainPageBase):
         mapset_path = f"{gisdbase}/{location}/{mapset}"
         notebooks_dir = Path(mapset_path) / "notebooks"
         notebooks_dir.mkdir(parents=True, exist_ok=True)
-        self.session = gj.init(mapset_path)
+
+        # Init Jupyter context – this calls _set_notebook_defaults() internally
+        gj.init(str(mapset_path))
+
+        # Now this will be True:
+        print(gs.get_capture_stderr())
+        assert gs.get_capture_stderr() is True
 
         # Spusť Jupyter server v adresáři notebooks
         url_base = self.start_jupyter_server(notebooks_dir)
 
         # Najdi všechny .ipynb soubory v notebooks/
-        ipynb_files = [f for f in Path.iterdir(notebooks_dir) if f.endswith(".ipynb")]
+        ipynb_files = [
+            f for f in Path(notebooks_dir).iterdir() if str(f).endswith(".ipynb")
+        ]
         print(ipynb_files)
 
         if not ipynb_files:
@@ -137,7 +145,7 @@ class JupyterPanel(wx.Panel, MainPageBase):
                             "You can add your own code here\n",
                             "or create new notebooks in the GRASS GUI\n",
                             "and they will be automatically saved in the directory: `{}`\n".format(
-                                notebooks_dir.replace("\\", "/")
+                                str(notebooks_dir).replace("\\", "/")
                             ),
                             "and opened in the Jupyter Notebook interface.\n",
                             "\n",
@@ -225,11 +233,11 @@ class JupyterPanel(wx.Panel, MainPageBase):
 
         for fname in ipynb_files:
             url_base = url_base.rstrip("/")
-            url = f"{url_base}/notebooks/{fname}"
+            url = f"{url_base}/notebooks/{fname.name}"
             browser = html.WebView.New(notebook)
             wx.CallAfter(browser.LoadURL, url)
             wx.CallAfter(browser.Bind, html.EVT_WEBVIEW_LOADED, hide_file_menu)
-            notebook.AddPage(browser, fname)
+            notebook.AddPage(browser, fname.name)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(notebook, 1, wx.EXPAND)
