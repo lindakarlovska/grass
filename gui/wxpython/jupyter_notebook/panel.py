@@ -14,6 +14,8 @@ This program is free software under the GNU General Public License
 @author Linda Karlovska <linda.karlovska seznam.cz>
 """
 
+import os
+import sys
 import json
 import subprocess
 import threading
@@ -27,7 +29,6 @@ except ImportError as e:
     raise RuntimeError(_("wx.html2 is required for Jupyter integration.")) from e
 
 import grass.script as gs
-import grass.jupyter as gj
 
 from main_window.page import MainPageBase
 
@@ -71,11 +72,25 @@ class JupyterPanel(wx.Panel, MainPageBase):
         port = sock.getsockname()[1]
         sock.close()
 
-        # Spusť server v samostatném vlákně
+        kernel_list = subprocess.check_output(
+            ["jupyter", "kernelspec", "list", "--json"]
+        )
+        kernels = json.loads(kernel_list)
+
+        kernel_dir = os.path.join(os.environ["GISBASE"], "jupyter")
+
+        env = os.environ.copy()
+        # Přidáme cestu ke kernelu, aby Jupyter viděl náš GRASS kernel
+        env["JUPYTER_PATH"] = kernel_dir
+
+        # Volitelně nastav environment proměnné specifické pro GRASS
+        env["GRASS_JUPYTER_FROM_GUI"] = "1"
+
         def run_server():
             subprocess.Popen(
                 [
-                    "jupyter",
+                    sys.executable,  # použije Python z GRASSu, nebo jiný specifický interpreter
+                    "-m",
                     "notebook",
                     "--no-browser",
                     "--NotebookApp.token=''",
@@ -83,14 +98,24 @@ class JupyterPanel(wx.Panel, MainPageBase):
                     "--port",
                     str(port),
                     "--notebook-dir",
-                    notebooks_dir,
-                ]
+                    str(notebooks_dir),
+                ],
+                env=env,
             )
 
         threading.Thread(target=run_server, daemon=True).start()
 
         output = subprocess.check_output(["jupyter", "notebook", "list"]).decode()
         print(output)
+
+        kernel_list = subprocess.check_output(
+            ["jupyter", "kernelspec", "list", "--json"]
+        )
+        kernels = json.loads(kernel_list)
+
+        print("Available kernels:")
+        for name, info in kernels["kernelspecs"].items():
+            print(f"  {name}: {info['resource_dir']}")
 
         # Počkej, až server naběhne (lepší by bylo kontrolovat výstup, zde jen krátké čekání)
         time.sleep(3)
@@ -106,13 +131,6 @@ class JupyterPanel(wx.Panel, MainPageBase):
         mapset_path = f"{gisdbase}/{location}/{mapset}"
         notebooks_dir = Path(mapset_path) / "notebooks"
         notebooks_dir.mkdir(parents=True, exist_ok=True)
-
-        # Init Jupyter context – this calls _set_notebook_defaults() internally
-        gj.init(str(mapset_path))
-
-        # Now this will be True:
-        print(gs.get_capture_stderr())
-        assert gs.get_capture_stderr() is True
 
         # Spusť Jupyter server v adresáři notebooks
         url_base = self.start_jupyter_server(notebooks_dir)
@@ -185,15 +203,16 @@ class JupyterPanel(wx.Panel, MainPageBase):
                 ],
                 "metadata": {
                     "kernelspec": {
-                        "display_name": "Python 3",
+                        "display_name": "Python [GRASS]",
                         "language": "python",
-                        "name": "python3",
+                        "name": "grass",
                     },
                     "language_info": {"name": "python", "version": "3.x"},
                 },
                 "nbformat": 4,
                 "nbformat_minor": 2,
             }
+
             print(new_notebook_path)
             print("template")
             with open(new_notebook_path, "w", encoding="utf-8") as f:

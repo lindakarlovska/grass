@@ -43,6 +43,7 @@ DIRS = \
 	temporal \
 	doc \
 	gui \
+	jupyter \
 	visualization \
 	locale \
 	man \

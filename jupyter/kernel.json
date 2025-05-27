@@ -1,0 +1,14 @@
+{
+    "display_name": "Python [GRASS]",
+    "language": "python",
+    "argv": [
+        "./grass_python.sh",
+        "-m",
+        "ipykernel_launcher",
+        "-f",
+        "{connection_file}"
+    ],
+    "env": {
+        "PYTHONSTARTUP": "./startup.py"
+    }
+}
